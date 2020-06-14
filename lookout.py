@@ -25,16 +25,18 @@ def _temp_chdir(path):
     os.chdir(cwd)
 
 
-def get_churn_histogram(path):
+def get_git_churn_histogram(path):
 
     with _temp_chdir(path):
-        bar = subprocess.run(["git", "log", "--format=format:", "--name-only", "."], stdout=subprocess.PIPE)
-        find_repo_top_path = subprocess.run(["git", "rev-parse", "--show-toplevel"], stdout=subprocess.PIPE)
+        git_log = subprocess.run(["git", "log", "--format=format:", "--name-only", "."], stdout=subprocess.PIPE)
 
-    repo_top_path = os.path.normpath(find_repo_top_path.stdout.decode().split("\n")[0])
+        # git always returns paths relative to the uppest dir level of the repo
+        repo_top_path = subprocess.run(["git", "rev-parse", "--show-toplevel"], stdout=subprocess.PIPE)
+
+    repo_top_path = os.path.normpath(repo_top_path.stdout.decode().split("\n")[0])
 
     # this sorting step is necessary so that the subsequent grouping leaves all same elements contiguous
-    changed_files = sorted([os.path.join(repo_top_path, os.path.normpath(event)) for event in bar.stdout.decode().split("\n") if event])
+    changed_files = sorted([os.path.join(repo_top_path, os.path.normpath(event)) for event in git_log.stdout.decode().split("\n") if event])
 
     changes_py_files = [item for item in changed_files if item.endswith('.py')]
 
@@ -42,14 +44,6 @@ def get_churn_histogram(path):
     existing_changes_py_files = [item for item in changes_py_files if os.path.exists(item)]
 
     return sorted([(key, len(list(group))) for key, group in groupby(existing_changes_py_files)], key=lambda x: x[0])[::-1]
-
-
-def get_script_paths(path):
-    sub_filepaths = [os.path.sep.join((basepath, file)) for basepath, _, files in list(os.walk(path)) for file in files]
-
-    no_cache_filepaths = [item for item in sub_filepaths if '__pycache__' not in item]
-
-    return [item for item in no_cache_filepaths if item.endswith('.py')]
 
 
 class ModuleComplexityBrowser:
@@ -125,17 +119,14 @@ def get_module_complexity(path):
 def get_refactoring_scores(path):
 
     # churn
-    changes_histogram = dict(get_churn_histogram(path))
+    changes_histogram = dict(get_git_churn_histogram(path))
 
     # complexity
-    sub_filepaths = get_script_paths(path)
-    complexity_histogram = dict([(file, get_module_complexity(file)) for file in sub_filepaths])
-
-    common_keys = set(changes_histogram.keys()).intersection(list(complexity_histogram.keys()))
+    complexity_histogram = dict([(file, get_module_complexity(file)) for file in changes_histogram.keys()])
 
     # merge
     results = {}
-    for key in common_keys:
+    for key in changes_histogram.keys():
         results[key] = {}
         results[key]['complexity'] = complexity_histogram[key]
         results[key]['churn'] = changes_histogram[key]
@@ -179,6 +170,6 @@ if __name__ == "__main__":
 
     path = r"C:\Users\mosegui\Desktop\fos4x_pkg_develop\python-packages"
     import sys
-    sys.argv.append('-p')
+    # sys.argv.append('-p')
     sys.argv.append(path)
     main()
