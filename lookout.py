@@ -167,9 +167,4 @@ def main():
 
 
 if __name__ == "__main__":
-
-    path = r"C:\Users\mosegui\Desktop\fos4x_pkg_develop\python-packages"
-    import sys
-    # sys.argv.append('-p')
-    sys.argv.append(path)
     main()
